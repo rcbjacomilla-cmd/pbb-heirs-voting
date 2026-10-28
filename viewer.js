@@ -1,4 +1,4 @@
-import { createBackend } from './backend.js';
+import { createBackend } from './backend.js?v=20261028-loginfix2';
 import { ROUND_MAP } from './rounds.js';
 const $ = id => document.getElementById(id);
 const screens = ['login-panel','loading','waiting','vote-content','already-voted','results-status','error-screen'];

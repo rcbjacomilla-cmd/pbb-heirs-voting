@@ -1,4 +1,4 @@
-import {createBackend} from './backend.js';
+import {createBackend} from './backend.js?v=20261028-loginfix2';
 import {ROUNDS,ROUND_MAP,DEFAULT_STATE,makeSummary} from './rounds.js';
 const $ = id => document.getElementById(id);
 let backend = null, state = structuredClone(DEFAULT_STATE), votes={}, unsubVotes=null, activeRound='eviction', working=false, isSignedIn=false;

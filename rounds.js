@@ -1,7 +1,7 @@
 export const ROUNDS = [
   {
     id: 'eviction',
-    kicker: 'DECK PAGES 18–19 · NOMINATION TIME',
+    kicker: 'NOMINATION NIGHT · LIVE VOTING',
     label: 'Eviction vote',
     title: 'WHO WILL YOU SAVE?',
     question: 'Dex and Demi are nominated! Vote to SAVE the housemate you want to stay in Bahay ni Kuya.',
@@ -13,7 +13,7 @@ export const ROUNDS = [
   },
   {
     id: 'final-demi-jara',
-    kicker: 'DECK PAGE 24 · BIG NIGHT',
+    kicker: 'BIG NIGHT · THE FINAL VOTE',
     label: 'Big Night: Demi & Jara',
     title: 'VOTE FOR YOUR BIG WINNER',
     question: 'Dex has been evicted. Only Demi and Jara remain. Who will be this season’s Big Winner?',
@@ -25,7 +25,7 @@ export const ROUNDS = [
   },
   {
     id: 'final-dex-jara',
-    kicker: 'DECK PAGE 24 · ALTERNATE BIG NIGHT',
+    kicker: 'BIG NIGHT · THE FINAL VOTE',
     label: 'Big Night: Dex & Jara',
     title: 'VOTE FOR YOUR BIG WINNER',
     question: 'Demi has been evicted. Only Dex and Jara remain. Who will be this season’s Big Winner?',
@@ -37,7 +37,7 @@ export const ROUNDS = [
   },
   {
     id: 'diaz-quiz',
-    kicker: 'OPTIONAL · DIAZ v. IAC CASE CHALLENGE',
+    kicker: 'CASE CHALLENGE · DIAZ v. IAC',
     label: 'Bonus case poll',
     title: 'BBS OR BBE: THE 1990 RULING',
     question: 'Under Diaz v. IAC (1990), was the claim of the nonmarital grandchildren through their deceased legitimate father allowed?',

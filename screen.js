@@ -1,5 +1,5 @@
-import {createBackend} from './backend.js?v=20261028-loginfix2';
-import {ROUND_MAP} from './rounds.js';
+import {createBackend} from './backend.js?v=20261028-pinoybigben1';
+import {ROUND_MAP} from './rounds.js?v=20261028-pinoybigben1';
 const $=id=>document.getElementById(id);
 const joinUrl=new URL('index.html',location.href).href.replace(/\?[^#]*$/,'');
 function render(state){
@@ -49,4 +49,4 @@ $('screen-join-url').textContent=joinUrl;
 function buildQR(){const el=$('qr-screen');el.innerHTML='';if(typeof window.QRCode==='function')new window.QRCode(el,{text:joinUrl,width:218,height:218,colorDark:'#123b73',colorLight:'#fff',correctLevel:window.QRCode.CorrectLevel.M});else el.textContent='Share the link below.';}
 const timer=setInterval(()=>{if(typeof window.QRCode==='function'){clearInterval(timer);buildQR();}},200);
 setTimeout(()=>{clearInterval(timer);if(!$('qr-screen').querySelector('canvas'))buildQR();},3500);
-try{const backend=await createBackend('screen');backend.subscribeState(render);}catch(e){$('screen-title').textContent='CONNECTION ERROR';$('screen-question').textContent=e.message||String(e);}
+try{const backend=await createBackend('screen');backend.subscribeState(render,error=>{ $('screen-state').textContent='SYNC ERROR';$('screen-title').textContent='CONNECTION ERROR';$('screen-question').textContent=(error?.message||String(error))+' — Check Supabase voting-state access.'; });}catch(e){$('screen-title').textContent='CONNECTION ERROR';$('screen-question').textContent=e.message||String(e);}

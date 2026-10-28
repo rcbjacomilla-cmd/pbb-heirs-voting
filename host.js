@@ -1,14 +1,30 @@
-import {createBackend} from './backend.js?v=20261028-loginfix2';
-import {ROUNDS,ROUND_MAP,DEFAULT_STATE,makeSummary} from './rounds.js';
+import {createBackend} from './backend.js?v=20261028-pinoybigben1';
+import {ROUNDS,ROUND_MAP,DEFAULT_STATE,makeSummary} from './rounds.js?v=20261028-pinoybigben1';
 const $ = id => document.getElementById(id);
-let backend = null, state = structuredClone(DEFAULT_STATE), votes={}, unsubVotes=null, activeRound='eviction', working=false, isSignedIn=false;
+let backend = null, state = structuredClone(DEFAULT_STATE), votes={}, unsubVotes=null, activeRound='eviction', working=false, isSignedIn=false, stateReady=false;
 const escapeHTML=s=>String(s).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const joinUrl = new URL('index.html',location.href).href.replace(/\?[^#]*$/,'');
-function setPending(on){working=on;for(const id of ['open-voting','close-voting','reveal-results','hide-results','reset-round'])$(id).disabled=on;}
+function setPending(on){working=on;for(const id of ['open-voting','close-voting','reveal-results','hide-results','reset-round'])$(id).disabled=on||!stateReady;}
+function syncError(error){
+ stateReady=false;
+ const notice=$('connection-alert');
+ const detail=$('connection-detail');
+ detail.textContent=error?.message||String(error||'Voting state unavailable.');
+ notice.classList.remove('hidden');
+ $('metric-status').textContent='OFFLINE';
+ setPending(false);
+ renderRounds();
+}
+function syncRecovered(){
+ stateReady=true;
+ $('connection-alert').classList.add('hidden');
+ $('connection-detail').textContent='';
+}
 function message(error){$('control-error').textContent=error?.message || String(error || '');}
 function showAuth(user) {
  isSignedIn=!!user && !!(user.isHost || user.is_host);
  $('loading').classList.add('hidden');
+ if(!isSignedIn)stateReady=false;
  $('login-panel').classList.toggle('hidden',isSignedIn);
  $('dashboard').classList.toggle('hidden',!isSignedIn);
  $('logout').classList.toggle('hidden',!isSignedIn || backend.mode==='demo');
@@ -16,14 +32,14 @@ function showAuth(user) {
 function connectVotes(roundId) {
  if(unsubVotes){unsubVotes();unsubVotes=null;}
  votes={};renderVotes();
- if(isSignedIn)unsubVotes=backend.subscribeVotes(roundId, val=>{votes=val;renderVotes();});
+ if(isSignedIn)unsubVotes=backend.subscribeVotes(roundId, val=>{votes=val;renderVotes();}, err=>{ $('tally-note').textContent='Tally error: '+(err?.message||String(err)); });
 }
 function renderRounds() {
  $('round-list').replaceChildren();
  for(const round of ROUNDS){
   const b=document.createElement('button');b.className='round-btn'+(round.id===activeRound?' active':'');
   b.innerHTML=`<strong>${escapeHTML(round.label)}</strong><small>${escapeHTML(round.kicker)}</small>`;
-  b.disabled=working;
+  b.disabled=working||!stateReady;
   b.addEventListener('click',()=>act(async()=>{
     await backend.setState({activeRound:round.id,status:'waiting',showResults:false,resultSummary:null});
   }));$('round-list').append(b);
@@ -50,6 +66,7 @@ function renderVotes(){
  $('tally-note').textContent=state.showResults ? 'Results are now visible to the class on the projector screen.' : 'Voting counts are private to Kuya until REVEAL is clicked.';
 }
 function renderState(next){
+ syncRecovered();
  const changed=next.activeRound!==activeRound;
  state=next;activeRound=ROUND_MAP[state.activeRound]?state.activeRound:'eviction';
  const round=ROUND_MAP[activeRound];
@@ -57,14 +74,14 @@ function renderState(next){
  $('active-title').textContent=round.title;
  $('active-question').textContent=round.question;
  $('metric-status').textContent=state.status==='open'?'LIVE':state.status==='closed'?'CLOSED':'STANDBY';
- $('open-voting').disabled=working || state.status==='open';
- $('close-voting').disabled=working || state.status!=='open';
- $('reveal-results').disabled=working || state.showResults;
- $('hide-results').disabled=working || !state.showResults;
+ $('open-voting').disabled=working || !stateReady || state.status==='open';
+ $('close-voting').disabled=working || !stateReady || state.status!=='open';
+ $('reveal-results').disabled=working || !stateReady || state.showResults;
+ $('hide-results').disabled=working || !stateReady || !state.showResults;
  if(changed || !unsubVotes)connectVotes(activeRound);
  renderRounds();renderVotes();
 }
-async function act(callback){if(working)return;setPending(true);message('');try{await callback();}catch(e){message(e);}finally{setPending(false);renderState(state);}}
+async function act(callback){if(working)return;if(!stateReady){syncError(Error('Voting state has not loaded. Check the connection message, then retry.'));return;}setPending(true);message('');try{await callback();}catch(e){message(e);}finally{setPending(false);renderState(state);}}
 $('open-voting').addEventListener('click',()=>act(async()=>{await backend.setState({status:'open',showResults:false,resultSummary:null});}));
 $('close-voting').addEventListener('click',()=>act(async()=>{await backend.setState({status:'closed',showResults:false,resultSummary:null});}));
 $('reveal-results').addEventListener('click',()=>act(async()=>{await backend.reveal(activeRound);}));
@@ -79,6 +96,7 @@ $('login-form').addEventListener('submit',async e=>{e.preventDefault();$('login-
  catch(err){$('login-error').textContent=`Login failed: ${err.message || err}`;}
  finally{button.disabled=false;button.textContent='UNLOCK CONTROL ROOM';}
 });
+$('retry-connection').addEventListener('click',()=>location.reload());
 $('logout').addEventListener('click',async()=>{await backend.logout();});
 $('copy-url').addEventListener('click',async()=>{
  try{await navigator.clipboard.writeText(joinUrl);$('copy-url').textContent='COPIED!';setTimeout(()=>$('copy-url').textContent='COPY LINK',1600);}
@@ -88,7 +106,7 @@ function buildQR(){
  $('join-url').textContent=joinUrl;
  const isLocal=/^(file:|http:\/\/localhost|http:\/\/127\.0\.0\.1)/.test(joinUrl);
  if(isLocal)$('qr-note').textContent='Test link only: deploy to GitHub Pages first, then share the public URL/QR.';
- else $('qr-note').textContent='Share this QR during Nomination Time (page 18 of your deck), and paste the link in Zoom chat.';
+ else $('qr-note').textContent='Share this QR when voting opens, and paste the link in your class chat.';
  const qr=$('qr-host');qr.innerHTML='';
  if(typeof window.QRCode==='function')new window.QRCode(qr,{text:joinUrl,width:156,height:156,colorDark:'#123b73',colorLight:'#ffffff',correctLevel:window.QRCode.CorrectLevel.M});
  else qr.textContent='QR unavailable. Use the link below.';
@@ -98,14 +116,15 @@ setTimeout(()=>{clearInterval(qrTimer);if(!$('qr-host').querySelector('canvas'))
 $('projector-link').href=new URL('screen.html',location.href).href;
 try{
  backend=await createBackend('host');
+ window.__pbbHostStarted=true;
  $('mode-pill').classList.add(backend.mode==='demo'?'demo':'live');$('mode-text').textContent=backend.mode==='demo'?'DEMO MODE':'SUPABASE LIVE';
  let unsubState=null;
  backend.subscribeAuth(user=>{
    showAuth(user);
    if(unsubState){unsubState();unsubState=null;}
    if(unsubVotes){unsubVotes();unsubVotes=null;}
-   if(isSignedIn){unsubState=backend.subscribeState(renderState);}
+   if(isSignedIn){unsubState=backend.subscribeState(renderState,syncError);}
  });
  showAuth(await backend.currentUser());
- if(isSignedIn)unsubState=backend.subscribeState(renderState);
+ if(isSignedIn)unsubState=backend.subscribeState(renderState,syncError);
 }catch(e){$('loading').innerHTML=`<h2 class="panel-title">Connection error</h2><p class="panel-caption">${escapeHTML(e.message||String(e))}</p>`;}

@@ -1,5 +1,5 @@
-import { createBackend } from './backend.js?v=20261028-loginfix2';
-import { ROUND_MAP } from './rounds.js';
+import { createBackend } from './backend.js?v=20261028-pinoybigben1';
+import { ROUND_MAP } from './rounds.js?v=20261028-pinoybigben1';
 const $ = id => document.getElementById(id);
 const screens = ['login-panel','loading','waiting','vote-content','already-voted','results-status','error-screen'];
 let backend = null, state = null, chosen = null, currentRoundId = null, ownVote = null, unsubscribeOwn = null, submitting = false, signedIn = null, unsubscribeState = null;
@@ -69,7 +69,9 @@ function afterLogin(user){
   signedIn=user;
   if (unsubscribeOwn){unsubscribeOwn();unsubscribeOwn=null;}
   ownVote=null; currentRoundId=null;
-  if (!unsubscribeState) unsubscribeState=backend.subscribeState(next=>{state=next;render();});
+  if (!unsubscribeState) unsubscribeState=backend.subscribeState(next=>{state=next;render();},error=>{
+    if(!state){ $('fatal-error').textContent='Could not load Kuya’s voting state: '+(error?.message||String(error))+' Check your Supabase pbb_house_state access or run REPAIR_VOTING_CONNECTION.sql.';show('error-screen'); }
+  });
   render();
 }
 async function authenticate(action){
@@ -93,6 +95,7 @@ async function viewerLogout(){
 for(const id of ['viewer-logout-waiting','viewer-logout-voting','viewer-logout-done','viewer-logout-results'])$(id).addEventListener('click',viewerLogout);
 try {
   backend=await createBackend('viewer');
+  window.__pbbViewerStarted=true;
   $('mode-text').textContent=backend.mode==='demo'?'DEMO MODE':'LIVE VOTING';$('mode-pill').classList.add(backend.mode==='demo'?'demo':'live');
   if(backend.mode==='demo')$('demo-caveat').textContent='Demo votes only sync within one browser; real voting requires Supabase setup.';
   const user=await backend.currentUser();

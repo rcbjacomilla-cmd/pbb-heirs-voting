@@ -1,5 +1,5 @@
 import {supabaseUrl, supabasePublishableKey, supabaseReady} from './supabase-config.js';
-import {DEFAULT_STATE, makeSummary} from './rounds.js';
+import {DEFAULT_STATE, makeSummary} from './rounds.js?v=20261028-pinoybigben1';
 
 const copy = data => JSON.parse(JSON.stringify(data));
 const demoStore='pbb-heirs-name-login-demo-v1';
@@ -34,8 +34,17 @@ function demoBackend(role){
   };
 }
 
+const TIMEOUT_MS=13000;
+function withTimeout(promise, label, ms=TIMEOUT_MS){
+  let timer;
+  const limit=new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error(`${label} timed out after ${Math.round(ms/1000)} seconds. Check your connection and Supabase project status, then retry.`)),ms);});
+  return Promise.race([Promise.resolve(promise),limit]).finally(()=>clearTimeout(timer));
+}
 let loader;
-async function loadSupabase(){if(!loader)loader=import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm');return loader;}
+async function loadSupabase(){
+  if(!loader) loader=withTimeout(import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm'),'Loading Supabase library');
+  return loader;
+}
 const stateColumns={activeRound:'active_round',status:'status',showResults:'show_results',resultSummary:'result_summary'};
 const deserializeState=row=>row?{activeRound:row.active_round,status:row.status,showResults:row.show_results,resultSummary:row.result_summary}:copy(DEFAULT_STATE);
 function unwrap(result,action){if(result.error)throw Error(`${action}: ${result.error.message}`);return result.data;}
@@ -50,9 +59,9 @@ export async function createBackend(role='viewer'){
   // This does NOT change or depend on the study website's Supabase Auth settings.
   const client=createClient(supabaseUrl,supabasePublishableKey,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false,storageKey:'pbb-independent-name-login'}});
   let authCallback=null;
-  const rpc=async(name,args,action)=>unwrap(await client.rpc(name,args),action);
+  const rpc=async(name,args,action)=>unwrap(await withTimeout(client.rpc(name,args),action),action);
   // Fail visibly with an actionable message if the new PBB SQL hasn't been installed.
-  const health=await client.rpc('pbb_whoami',{p_token:''});
+  const health=await withTimeout(client.rpc('pbb_whoami',{p_token:''}),'Checking PBB database setup');
   if (health.error) {
     const missing=health.error.code==='PGRST202'||/could not find the function/i.test(health.error.message);
     throw new Error(missing
@@ -72,16 +81,41 @@ export async function createBackend(role='viewer'){
     if(role==='host'&&!user.isHost){emit(user);throw Error('This account is not yet authorized as Kuya. Have the project owner promote Ben using the SQL setup instructions.');}
     emit(user);return user;
   }
-  const fetchState=async()=>deserializeState(unwrap(await client.from('pbb_house_state').select('*').eq('id',1).single(),'Loading voting state'));
+  const fetchState=async()=>{
+    const record=unwrap(await withTimeout(client.from('pbb_house_state').select('*').eq('id',1).single(),'Loading voting state'),'Loading voting state');
+    if(!record)throw Error('Voting state is missing. Run REPAIR_VOTING_CONNECTION.sql in your Supabase SQL Editor.');
+    return deserializeState(record);
+  };
   const fetchVotes=async rid=>await rpc('pbb_private_votes',{p_token:token(),p_round:rid},'Loading host tally')||{};
   const fetchOwn=async rid=>await rpc('pbb_my_vote',{p_token:token(),p_round:rid},'Loading your vote');
-  function watchTable(table,filter,read,cb,interval){
-    let disposed=false,working=false;
-    async function refresh(){if(disposed||working)return;working=true;try{const data=await read();if(!disposed)cb(data);}catch(e){if(!disposed)console.error('[PBB] Refresh failed:',e);}finally{working=false;}}
-    const channel=client.channel(`pbb-watch-${table}-${Math.random().toString(36).slice(2)}`)
-      .on('postgres_changes',{event:'*',schema:'public',table,...(filter?{filter}:{})},refresh).subscribe();
-    const timer=setInterval(refresh,interval);refresh();
-    return()=>{disposed=true;clearInterval(timer);client.removeChannel(channel);};
+  function watchTable(table,filter,read,cb,interval,onError){
+    let disposed=false,working=false,lastError='';
+    const report=error=>{
+      if(disposed)return;
+      const msg=error?.message||String(error);
+      if(msg!==lastError){console.error('[PBB] Sync error in '+table+':',error);lastError=msg;}
+      if(typeof onError==='function')onError(error);
+    };
+    async function refresh(){
+      if(disposed||working)return;
+      working=true;
+      try{
+        const data=await read();
+        if(!disposed){lastError='';cb(data);}
+      }catch(e){report(e);}finally{working=false;}
+    }
+    let channel=null;
+    try{
+      channel=client.channel(`pbb-watch-${table}-${Math.random().toString(36).slice(2)}`)
+        .on('postgres_changes',{event:'*',schema:'public',table,...(filter?{filter}:{})},refresh)
+        .subscribe(status=>{
+          // Polling is a working fallback even if a real-time socket cannot connect.
+          if(status==='CHANNEL_ERROR'||status==='TIMED_OUT')console.warn('[PBB] Live socket unavailable; polling continues.');
+        });
+    }catch(error){console.warn('[PBB] Live subscription failed; polling continues.',error);}
+    const timer=setInterval(refresh,interval);
+    refresh();
+    return()=>{disposed=true;clearInterval(timer);if(channel)client.removeChannel(channel);};
   }
   return{
     mode:'live',currentUser,
@@ -89,9 +123,9 @@ export async function createBackend(role='viewer'){
     login:(name,password)=>authenticate(name,password,'login'),
     register:(name,password)=>authenticate(name,password,'register'),
     async logout(){const previous=token();forgetSession();if(previous){try{await rpc('pbb_logout',{p_token:previous},'Signing out');}catch(e){console.warn(e);}}emit(null);},
-    subscribeState:cb=>watchTable('pbb_house_state','id=eq.1',fetchState,8000),
-    subscribeVotes:(rid,cb)=>watchTable('pbb_votes',null,()=>fetchVotes(rid),cb,2000),
-    subscribeOwnVote:(rid,cb)=>watchTable('pbb_votes',null,()=>fetchOwn(rid),cb,6000),
+    subscribeState:(cb,onError)=>watchTable('pbb_house_state','id=eq.1',fetchState,cb,5000,onError),
+    subscribeVotes:(rid,cb,onError)=>watchTable('pbb_votes',null,()=>fetchVotes(rid),cb,2500,onError),
+    subscribeOwnVote:(rid,cb,onError)=>watchTable('pbb_votes',null,()=>fetchOwn(rid),cb,5000,onError),
     async setState(patch){await rpc('pbb_update_show',{p_token:token(),p_patch:patch},'Updating voting state');},
     async castVote(rid,choice){await rpc('pbb_submit_vote',{p_token:token(),p_round:rid,p_choice:choice},'Recording vote');},
     async resetVotes(rid){await rpc('pbb_clear_round',{p_token:token(),p_round:rid},'Resetting votes');},

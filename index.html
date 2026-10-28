@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#c0e3f2">
+<title>Bahay ni Kuya: Ang Hati ng Pamilya · Vote</title>
+<meta name="description" content="PBB-inspired classroom live voting for Order of Intestate Succession, Articles 978–984.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="viewer-page">
+<div class="cloudscape" aria-hidden="true"><i class="cloud c1"></i><i class="cloud c2"></i><i class="cloud c3"></i><i class="cloud c4"></i><i class="cloud c5"></i></div>
+<div class="shell viewer-shell">
+<nav class="nav">
+<a class="brand" href="index.html" aria-label="Bahay ni Kuya home"><img src="assets/pbb-eye.webp" alt="" class="brand-eye"><span class="brand-type"><strong><span class="red">PINOY BIG</span><span class="blue">BROTHER</span></strong><span class="brand-caption">BAHAY NI KUYA: ANG HATI NG PAMILYA</span></span></a>
+<span class="chip" id="mode-pill"><span class="dot"></span><span id="mode-text">CONNECTING</span></span>
+</nav>
+<header class="hero cream-hero">
+<div class="show-overline">THE OFFICIAL CLASSROOM VOTING PORTAL</div>
+<h1 class="hero-title"><span class="red">PINOY BIG</span><span class="blue">BROTHER</span></h1>
+<p class="hero-tagline">BAHAY NI KUYA:<br>ANG HATI NG PAMILYA</p>
+<div class="episode-ribbon">ORDER OF INTESTATE SUCCESSION <span>·</span> ARTICLES 978–984</div>
+</header>
+<section class="paper-panel main-card" aria-live="polite">
+<div id="loading" class="status-panel"><div class="status-icon">⌛</div><h2>KUMOKONEKTA KAY KUYA…</h2><p>Preparing the house voting lines.</p></div>
+<div id="waiting" class="status-panel hidden"><div class="status-icon">☁</div><div class="card-kicker" id="waiting-kicker">STAND BY</div><h2>VOTING LINES ARE CLOSED</h2><p id="waiting-message">Kuya hasn't opened this round yet. Keep this page open—it will update automatically.</p><div class="line-label"><span class="pulse"></span> WAITING FOR KUYA'S SIGNAL</div></div>
+<div id="vote-content" class="hidden">
+<div class="card-head"><span class="card-kicker" id="round-kicker"></span><span class="chip live"><span class="dot"></span> LIVE VOTING</span></div>
+<h2 class="big-label" id="round-title"></h2><p class="question" id="round-question"></p>
+<div id="vote-options" class="voting-options"></div>
+<p class="footnote center" id="round-instruction"></p>
+<button class="btn primary full large" id="submit-vote" disabled>SELECT A HOUSEMATE</button>
+<div id="vote-error" class="error" role="alert"></div>
+</div>
+<div id="already-voted" class="status-panel hidden"><div class="status-icon">✓</div><div class="card-kicker">BBS VOTE RECEIVED</div><h2>NAKABOTO KA NA!</h2><p id="your-vote-label"></p><p>Your vote has been recorded. Stay here for Kuya's next round.</p></div>
+<div id="results-status" class="status-panel hidden"><div class="status-icon">★</div><div class="card-kicker">VOTING CLOSED</div><h2>THE RESULTS ARE IN!</h2><p>Abangan ang official reveal sa screen ni Kuya!</p></div>
+<div id="error-screen" class="status-panel hidden"><div class="status-icon">!</div><h2>CONNECTION PROBLEM</h2><p id="fatal-error"></p><button class="btn secondary" onclick="location.reload()">TRY AGAIN</button></div>
+</section>
+<section class="housemate-strip" aria-label="Official housemates"><div class="strip-label">MEET OUR HOUSEMATES</div><div class="mini-lineup"><div><img src="assets/jara.webp" alt="Jara"><strong>JARA</strong></div><div><img src="assets/dex.webp" alt="Dex"><strong>DEX</strong></div><div><img src="assets/demi.webp" alt="Demi"><strong>DEMI</strong></div></div></section>
+<footer class="footer">A classroom parody inspired by Pinoy Big Brother · Not affiliated with the television program. Audience votes determine the show outcome, not legal succession rights. <span id="demo-caveat"></span></footer>
+</div><script type="module" src="viewer.js"></script>
+</body></html>

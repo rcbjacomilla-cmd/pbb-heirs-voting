@@ -1,8 +1,8 @@
 import { createBackend } from './backend.js';
 import { ROUND_MAP } from './rounds.js';
 const $ = id => document.getElementById(id);
-const screens = ['loading','waiting','vote-content','already-voted','results-status','error-screen'];
-let backend = null, state = null, chosen = null, currentRoundId = null, ownVote = null, unsubscribeOwn = null, submitting = false;
+const screens = ['login-panel','loading','waiting','vote-content','already-voted','results-status','error-screen'];
+let backend = null, state = null, chosen = null, currentRoundId = null, ownVote = null, unsubscribeOwn = null, submitting = false, signedIn = null, unsubscribeState = null;
 function show(id) {screens.forEach(screen=>$(screen).classList.toggle('hidden',screen!==id));}
 function select(choice) {
   if (submitting || ownVote !== null) return;
@@ -39,7 +39,9 @@ function buildRound() {
   chosen=null;$('submit-vote').disabled=true;$('submit-vote').textContent=round.id==='diaz-quiz'?'SELECT AN ANSWER':'SELECT A HOUSEMATE';$('vote-error').textContent='';
 }
 function render() {
-  if(!state)return;
+  if(!signedIn){show('login-panel');return;}
+  for (const id of ['viewer-current-name','viewer-vote-name','viewer-voted-name','viewer-results-name']) $(id).textContent=signedIn.name;
+  if(!state){show('loading');return;}
   const round=ROUND_MAP[state.activeRound];
   if (!round) {show('waiting');$('waiting-message').textContent='Kuya is preparing the next challenge.';return;}
   if (state.activeRound !== currentRoundId) {
@@ -63,9 +65,36 @@ $('submit-vote').addEventListener('click',async()=>{
   catch(error){$('vote-error').textContent=error.message || 'Unable to submit. Please try again.';}
   finally{submitting=false;$('submit-vote').disabled=!chosen;$('submit-vote').textContent='SEND MY VOTE TO KUYA';}
 });
+function afterLogin(user){
+  signedIn=user;
+  if (unsubscribeOwn){unsubscribeOwn();unsubscribeOwn=null;}
+  ownVote=null; currentRoundId=null;
+  if (!unsubscribeState) unsubscribeState=backend.subscribeState(next=>{state=next;render();});
+  render();
+}
+async function authenticate(action){
+  const name=$('viewer-name').value.trim(),password=$('viewer-password').value;
+  $('login-error').textContent='';
+  if(name.length<2 || password.length<8){$('login-error').textContent='Name must have at least 2 characters, and password at least 8.';return;}
+  for(const id of ['viewer-sign-in','viewer-register'])$(id).disabled=true;
+  try{const user=await (action==='register'?backend.register(name,password):backend.login(name,password));$('viewer-password').value='';afterLogin(user);}
+  catch(e){$('login-error').textContent=e.message||String(e);}
+  finally{for(const id of ['viewer-sign-in','viewer-register'])$(id).disabled=false;}
+}
+$('viewer-login').addEventListener('submit',event=>{event.preventDefault();authenticate('login');});
+$('viewer-register').addEventListener('click',()=>authenticate('register'));
+async function viewerLogout(){
+  try{await backend.logout();}catch(e){console.warn(e);}
+  signedIn=null; state=null;ownVote=null;currentRoundId=null;
+  if(unsubscribeOwn){unsubscribeOwn();unsubscribeOwn=null;}
+  if(unsubscribeState){unsubscribeState();unsubscribeState=null;}
+  $('viewer-password').value='';render();
+}
+for(const id of ['viewer-logout-waiting','viewer-logout-voting','viewer-logout-done','viewer-logout-results'])$(id).addEventListener('click',viewerLogout);
 try {
   backend=await createBackend('viewer');
   $('mode-text').textContent=backend.mode==='demo'?'DEMO MODE':'LIVE VOTING';$('mode-pill').classList.add(backend.mode==='demo'?'demo':'live');
-  if(backend.mode==='demo')$('demo-caveat').textContent='Demo votes sync only across tabs in the same browser.';
-  backend.subscribeState(next=>{state=next;render();});
-} catch(error){$('fatal-error').textContent=error.message || 'Check the Supabase configuration and try again.';show('error-screen');}
+  if(backend.mode==='demo')$('demo-caveat').textContent='Demo votes only sync within one browser; real voting requires Supabase setup.';
+  const user=await backend.currentUser();
+  if(user)afterLogin(user);else render();
+} catch(error){$('fatal-error').textContent=error.message || 'Check Supabase configuration and SQL setup.';show('error-screen');}

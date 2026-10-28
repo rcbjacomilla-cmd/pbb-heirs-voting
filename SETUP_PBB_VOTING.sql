@@ -1,3 +1,8 @@
+-- INITIAL setup for a NEW project only. For an existing PBB installation,
+-- do NOT rerun this; run SETUP_NAME_PASSWORD.sql instead.
+-- For new projects, run this first and then SETUP_NAME_PASSWORD.sql.
+-- The legacy Anonymous/Email Auth instructions below are superseded by
+-- SETUP_NAME_PASSWORD.sql. DO NOT enable Anonymous sign-in for the new site.
 -- PINOY BIG HEIR — ADD THIS TO YOUR EXISTING 3L EVE2 SUPABASE PROJECT.
 -- Run in Supabase SQL Editor. The script creates NEW pbb_ objects ONLY.
 -- It does NOT drop, rename, or alter your existing lq_ study tables.
@@ -101,7 +106,7 @@ end $$;
 
 commit;
 
--- AFTER SETUP: Go to Supabase Authentication > Users and create Ben's
+-- LEGACY INSTRUCTIONS (IGNORE FOR NAME + PASSWORD): Go to Supabase Authentication > Users and create Ben's
 -- EMAIL + PASSWORD account. Copy Ben's User UID (not email or password).
 -- Run the following line separately after replacing the placeholder:
 -- insert into public.pbb_hosts(uid) values ('PASTE_BENS_USER_UUID') on conflict do nothing;
@@ -109,3 +114,5 @@ commit;
 -- Keep the host password private. Enable Authentication > Providers > Anonymous
 -- so classmates can vote without creating accounts. Enable Email for Ben.
 -- Never put your service_role/secret key into GitHub files.
+
+-- NEW LOGIN: see SETUP_NAME_PASSWORD.sql. Register Ben on the viewer page, then promote his name as host.

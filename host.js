@@ -7,7 +7,7 @@ const joinUrl = new URL('index.html',location.href).href.replace(/\?[^#]*$/,'');
 function setPending(on){working=on;for(const id of ['open-voting','close-voting','reveal-results','hide-results','reset-round'])$(id).disabled=on;}
 function message(error){$('control-error').textContent=error?.message || String(error || '');}
 function showAuth(user) {
- isSignedIn=!!user && !user.isAnonymous;
+ isSignedIn=!!user && !!(user.isHost || user.is_host);
  $('loading').classList.add('hidden');
  $('login-panel').classList.toggle('hidden',isSignedIn);
  $('dashboard').classList.toggle('hidden',!isSignedIn);
@@ -75,7 +75,7 @@ $('reset-round').addEventListener('click',()=>{
 });
 $('login-form').addEventListener('submit',async e=>{e.preventDefault();$('login-error').textContent='';
  const button=$('login-form').querySelector('button');button.disabled=true;button.textContent='SIGNING IN…';
- try{await backend.login($('email').value.trim(),$('password').value);}
+ try{await backend.login($('host-name').value.trim(),$('password').value);}
  catch(err){$('login-error').textContent=`Login failed: ${err.message || err}`;}
  finally{button.disabled=false;button.textContent='UNLOCK CONTROL ROOM';}
 });
@@ -99,16 +99,13 @@ $('projector-link').href=new URL('screen.html',location.href).href;
 try{
  backend=await createBackend('host');
  $('mode-pill').classList.add(backend.mode==='demo'?'demo':'live');$('mode-text').textContent=backend.mode==='demo'?'DEMO MODE':'SUPABASE LIVE';
- if(backend.mode==='demo'){
-  showAuth({uid:'demo-host',email:'demo@local.test'});
-  backend.subscribeState(renderState);
- }else{
-  let unsubState=null;
-  backend.subscribeAuth(user=>{
+ let unsubState=null;
+ backend.subscribeAuth(user=>{
    showAuth(user);
    if(unsubState){unsubState();unsubState=null;}
    if(unsubVotes){unsubVotes();unsubVotes=null;}
    if(isSignedIn){unsubState=backend.subscribeState(renderState);}
-  });
- }
+ });
+ showAuth(await backend.currentUser());
+ if(isSignedIn)unsubState=backend.subscribeState(renderState);
 }catch(e){$('loading').innerHTML=`<h2 class="panel-title">Connection error</h2><p class="panel-caption">${escapeHTML(e.message||String(e))}</p>`;}

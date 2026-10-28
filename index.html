@@ -21,9 +21,21 @@
 <div class="episode-ribbon">ORDER OF INTESTATE SUCCESSION <span>·</span> ARTICLES 978–984</div>
 </header>
 <section class="paper-panel main-card" aria-live="polite">
+<div id="login-panel" class="status-panel hidden" style="max-width:450px;margin:auto">
+  <div class="status-icon">★</div><div class="card-kicker">OFFICIAL HOUSE VIEWERS</div>
+  <h2>ENTER BAHAY NI KUYA</h2>
+  <p>Use your name and password to join. No email address is needed.</p>
+  <form id="viewer-login" class="form-stack" style="text-align:left;max-width:340px;margin:auto">
+    <div><label class="field-label" for="viewer-name">NAME</label><input id="viewer-name" class="field" type="text" autocomplete="username" minlength="2" maxlength="50" placeholder="e.g. Maria Santos" required></div>
+    <div><label class="field-label" for="viewer-password">PASSWORD</label><input id="viewer-password" class="field" type="password" autocomplete="current-password" minlength="8" placeholder="At least 8 characters" required></div>
+    <div class="auth-actions"><button class="btn primary" id="viewer-sign-in" type="submit">SIGN IN</button><button class="btn blue-btn" id="viewer-register" type="button">JOIN / CREATE ACCOUNT</button></div>
+    <p id="login-error" class="error" role="alert"></p>
+    <p class="footnote center">First time? Choose JOIN / CREATE ACCOUNT. Already registered? Choose SIGN IN. Names must be unique.</p>
+  </form>
+</div>
 <div id="loading" class="status-panel"><div class="status-icon">⌛</div><h2>KUMOKONEKTA KAY KUYA…</h2><p>Preparing the house voting lines.</p></div>
-<div id="waiting" class="status-panel hidden"><div class="status-icon">☁</div><div class="card-kicker" id="waiting-kicker">STAND BY</div><h2>VOTING LINES ARE CLOSED</h2><p id="waiting-message">Kuya hasn't opened this round yet. Keep this page open—it will update automatically.</p><div class="line-label"><span class="pulse"></span> WAITING FOR KUYA'S SIGNAL</div></div>
-<div id="vote-content" class="hidden">
+<div id="waiting" class="status-panel hidden"><p class="viewer-identity">SIGNED IN AS <strong id="viewer-current-name"></strong> · <button type="button" class="link-button" id="viewer-logout-waiting">SIGN OUT</button></p><div class="status-icon">☁</div><div class="card-kicker" id="waiting-kicker">STAND BY</div><h2>VOTING LINES ARE CLOSED</h2><p id="waiting-message">Kuya hasn't opened this round yet. Keep this page open—it will update automatically.</p><div class="line-label"><span class="pulse"></span> WAITING FOR KUYA'S SIGNAL</div></div>
+<div id="vote-content" class="hidden"><p class="viewer-identity">VOTING AS <strong id="viewer-vote-name"></strong> · <button type="button" class="link-button" id="viewer-logout-voting">SIGN OUT</button></p>
 <div class="card-head"><span class="card-kicker" id="round-kicker"></span><span class="chip live"><span class="dot"></span> LIVE VOTING</span></div>
 <h2 class="big-label" id="round-title"></h2><p class="question" id="round-question"></p>
 <div id="vote-options" class="voting-options"></div>
@@ -31,8 +43,8 @@
 <button class="btn primary full large" id="submit-vote" disabled>SELECT A HOUSEMATE</button>
 <div id="vote-error" class="error" role="alert"></div>
 </div>
-<div id="already-voted" class="status-panel hidden"><div class="status-icon">✓</div><div class="card-kicker">BBS VOTE RECEIVED</div><h2>NAKABOTO KA NA!</h2><p id="your-vote-label"></p><p>Your vote has been recorded. Stay here for Kuya's next round.</p></div>
-<div id="results-status" class="status-panel hidden"><div class="status-icon">★</div><div class="card-kicker">VOTING CLOSED</div><h2>THE RESULTS ARE IN!</h2><p>Abangan ang official reveal sa screen ni Kuya!</p></div>
+<div id="already-voted" class="status-panel hidden"><p class="viewer-identity">SIGNED IN AS <strong id="viewer-voted-name"></strong> · <button type="button" class="link-button" id="viewer-logout-done">SIGN OUT</button></p><div class="status-icon">✓</div><div class="card-kicker">BBS VOTE RECEIVED</div><h2>NAKABOTO KA NA!</h2><p id="your-vote-label"></p><p>Your vote has been recorded. Stay here for Kuya's next round.</p></div>
+<div id="results-status" class="status-panel hidden"><p class="viewer-identity">SIGNED IN AS <strong id="viewer-results-name"></strong> · <button type="button" class="link-button" id="viewer-logout-results">SIGN OUT</button></p><div class="status-icon">★</div><div class="card-kicker">VOTING CLOSED</div><h2>THE RESULTS ARE IN!</h2><p>Abangan ang official reveal sa screen ni Kuya!</p></div>
 <div id="error-screen" class="status-panel hidden"><div class="status-icon">!</div><h2>CONNECTION PROBLEM</h2><p id="fatal-error"></p><button class="btn secondary" onclick="location.reload()">TRY AGAIN</button></div>
 </section>
 <section class="housemate-strip" aria-label="Official housemates"><div class="strip-label">MEET OUR HOUSEMATES</div><div class="mini-lineup"><div><img src="assets/jara.webp" alt="Jara"><strong>JARA</strong></div><div><img src="assets/dex.webp" alt="Dex"><strong>DEX</strong></div><div><img src="assets/demi.webp" alt="Demi"><strong>DEMI</strong></div></div></section>

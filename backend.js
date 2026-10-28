@@ -1,122 +1,101 @@
 import {supabaseUrl, supabasePublishableKey, supabaseReady} from './supabase-config.js';
 import {DEFAULT_STATE, makeSummary} from './rounds.js';
 
-const deepCopy = value => JSON.parse(JSON.stringify(value));
-const localKey = 'pbb-heirs-supabase-demo-v1';
-const participantKey = 'pbb-heirs-supabase-demo-voter-v1';
-const eventName = 'pbb-heirs-supabase-demo-event';
+const copy = data => JSON.parse(JSON.stringify(data));
+const demoStore='pbb-heirs-name-login-demo-v1';
+const demoSessionKey='pbb-heirs-demo-name-session';
+const liveSessionKey='pbb-heirs-name-login-session-v1';
+const demoIdentityKey='pbb-heirs-demo-voter-id';
+const demoEvent='pbb-heirs-updated';
 
-function demoData() {
-  try {const data=JSON.parse(localStorage.getItem(localKey)||'null'); if(data?.state && data?.votes)return data;}
-  catch (_) {}
-  return {state:deepCopy(DEFAULT_STATE),votes:{}};
-}
-function saveDemo(data) {localStorage.setItem(localKey,JSON.stringify(data));window.dispatchEvent(new Event(eventName));}
-function uniqueId(){return globalThis.crypto?.randomUUID?.()||`v${Date.now()}${Math.random().toString(36).slice(2)}`;}
-function voterId(){let id=localStorage.getItem(participantKey);if(!id){id=uniqueId();localStorage.setItem(participantKey,id);}return id;}
-function subscribeDemo(extract,cb) {
-  const emit=()=>cb(deepCopy(extract(demoData())));
-  window.addEventListener('storage',emit);window.addEventListener(eventName,emit);emit();
-  return ()=>{window.removeEventListener('storage',emit);window.removeEventListener(eventName,emit);};
-}
-function demoBackend(){
-  const uid=voterId();
-  return {
+function demoData(){try{const x=JSON.parse(localStorage.getItem(demoStore)||'null');if(x?.state&&x?.votes)return x;}catch{}return{state:copy(DEFAULT_STATE),votes:{}};}
+function saveDemo(d){localStorage.setItem(demoStore,JSON.stringify(d));window.dispatchEvent(new Event(demoEvent));}
+function uniqueId(){return globalThis.crypto?.randomUUID?.()||`v${Date.now()}-${Math.random().toString(36).slice(2)}`;}
+function demoId(){let id=sessionStorage.getItem(demoIdentityKey);if(!id){id=uniqueId();sessionStorage.setItem(demoIdentityKey,id);}return id;}
+function demoSubscribe(extract,callback){const send=()=>callback(copy(extract(demoData())));window.addEventListener('storage',send);window.addEventListener(demoEvent,send);send();return()=>{window.removeEventListener('storage',send);window.removeEventListener(demoEvent,send);};}
+function demoBackend(role){
+  let authCb=null;let account=null;
+  function notify(){authCb?.(account);}
+  function demoAuthenticate(name,password){if(!name?.trim()||password?.length<8)throw Error('Enter your name and a password of at least 8 characters.');account={name:name.trim(),isHost:role==='host',is_host:role==='host',uid:demoId()};sessionStorage.setItem(demoSessionKey,JSON.stringify(account));notify();return account;}
+  return{
     mode:'demo',
-    subscribeAuth:cb=>{cb({uid:'demo-host',email:'demo@local.test',isAnonymous:false});return ()=>{};},
-    login:async()=>true,logout:async()=>true,
-    subscribeState:cb=>subscribeDemo(data=>data.state,cb),
-    subscribeVotes:(rid,cb)=>subscribeDemo(data=>data.votes[rid]||{},cb),
-    subscribeOwnVote:(rid,cb)=>subscribeDemo(data=>data.votes[rid]?.[uid]||null,cb),
-    async setState(patch){const data=demoData();data.state={...data.state,...patch};saveDemo(data);},
-    async castVote(rid,choice){const data=demoData();if(data.state.status!=='open'||data.state.activeRound!==rid)throw Error('Voting is closed for this round.');data.votes[rid]||={};if(data.votes[rid][uid])throw Error('You already voted in this round.');data.votes[rid][uid]=choice;saveDemo(data);},
-    async resetVotes(rid){const data=demoData();delete data.votes[rid];saveDemo(data);},
-    async reveal(rid){const data=demoData();data.state.status='closed';data.state.showResults=true;data.state.resultSummary=makeSummary(rid,data.votes[rid]||{});saveDemo(data);return data.state.resultSummary;}
+    async currentUser(){if(account)return account;try{account=JSON.parse(sessionStorage.getItem(demoSessionKey)||'null');}catch{};return account;},
+    subscribeAuth(cb){authCb=cb;cb(account);return()=>{authCb=null;};},
+    login:async(name,password)=>demoAuthenticate(name,password),
+    register:async(name,password)=>demoAuthenticate(name,password),
+    async logout(){account=null;sessionStorage.removeItem(demoSessionKey);notify();},
+    subscribeState:cb=>demoSubscribe(d=>d.state,cb),
+    subscribeVotes:(rid,cb)=>demoSubscribe(d=>d.votes[rid]||{},cb),
+    subscribeOwnVote:(rid,cb)=>demoSubscribe(d=>d.votes[rid]?.[demoId()]||null,cb),
+    async setState(patch){let d=demoData();d.state={...d.state,...patch};saveDemo(d);},
+    async castVote(rid,choice){let d=demoData();if(d.state.status!=='open'||d.state.activeRound!==rid)throw Error('Voting is closed.');d.votes[rid]||={};if(d.votes[rid][demoId()])throw Error('You already voted in this round.');d.votes[rid][demoId()]=choice;saveDemo(d);},
+    async resetVotes(rid){let d=demoData();delete d.votes[rid];saveDemo(d);},
+    async reveal(rid){let d=demoData();d.state.status='closed';d.state.showResults=true;d.state.resultSummary=makeSummary(rid,d.votes[rid]||{});saveDemo(d);return d.state.resultSummary;},
   };
 }
-function unwrap(result,context){if(result.error)throw new Error(`${context}: ${result.error.message}`);return result.data;}
-const stateKeys={activeRound:'active_round',status:'status',showResults:'show_results',resultSummary:'result_summary'};
-function stateFromRow(row){if(!row)return deepCopy(DEFAULT_STATE);return {
-  activeRound:row.active_round,status:row.status,showResults:row.show_results,resultSummary:row.result_summary
-};}
-function statePatch(patch){return Object.fromEntries(Object.entries(patch).map(([key,value])=>[stateKeys[key],value]).filter(([key])=>!!key));}
 
-let modulePromise;
-async function loadSupabase(){
-  if(!modulePromise)modulePromise=import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm');
-  return modulePromise;
-}
+let loader;
+async function loadSupabase(){if(!loader)loader=import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm');return loader;}
+const stateColumns={activeRound:'active_round',status:'status',showResults:'show_results',resultSummary:'result_summary'};
+const deserializeState=row=>row?{activeRound:row.active_round,status:row.status,showResults:row.show_results,resultSummary:row.result_summary}:copy(DEFAULT_STATE);
+function unwrap(result,action){if(result.error)throw Error(`${action}: ${result.error.message}`);return result.data;}
+function token(){try{return JSON.parse(localStorage.getItem(liveSessionKey)||'null')?.token||null;}catch{return null;}}
+function storeSession(data){localStorage.setItem(liveSessionKey,JSON.stringify({token:data.token}));}
+function forgetSession(){localStorage.removeItem(liveSessionKey);}
+
 export async function createBackend(role='viewer'){
-  if(!supabaseReady||new URLSearchParams(location.search).has('demo'))return demoBackend();
+  if(!supabaseReady||new URLSearchParams(location.search).has('demo'))return demoBackend(role);
   const {createClient}=await loadSupabase();
-  const client=createClient(supabaseUrl,supabasePublishableKey,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false}});
-  if(role!=='host'){
-    let {data,error}=await client.auth.getSession();
-    if(error)throw error;
-    if(!data.session){const created=await client.auth.signInAnonymously();if(created.error)throw new Error('Enable Anonymous sign-ins in Supabase Auth first. '+created.error.message);}
+  // Deliberately do not use Supabase Auth; we use separate, password-checked PBB RPCs.
+  // This does NOT change or depend on the study website's Supabase Auth settings.
+  const client=createClient(supabaseUrl,supabasePublishableKey,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false,storageKey:'pbb-independent-name-login'}});
+  let authCallback=null;
+  const rpc=async(name,args,action)=>unwrap(await client.rpc(name,args),action);
+  // Fail visibly with an actionable message if the new PBB SQL hasn't been installed.
+  const health=await client.rpc('pbb_whoami',{p_token:''});
+  if (health.error) {
+    const missing=health.error.code==='PGRST202'||/could not find the function/i.test(health.error.message);
+    throw new Error(missing
+      ? 'The Name + Password tables are not installed yet. Run SETUP_NAME_PASSWORD.sql in Supabase SQL Editor, then refresh.'
+      : 'Could not connect to Supabase. Check your public project URL/key and database setup: '+health.error.message);
   }
-  const getUid=async()=>{const {data,error}=await client.auth.getUser();if(error||!data.user)throw new Error('Session expired. Reload the page and try again.');return data.user.id;};
-  const getState=async()=>stateFromRow(unwrap(await client.from('pbb_house_state').select('*').eq('id',1).single(),'Loading voting state'));
-  const getVotes=async rid=>{
-    const data=unwrap(await client.from('pbb_votes').select('voter_id,choice').eq('round_id',rid),'Loading votes');
-    return Object.fromEntries(data.map(item=>[item.voter_id,item.choice]));
-  };
-  const getOwnVote=async rid=>{
-    const uid=await getUid();
-    const item=unwrap(await client.from('pbb_votes').select('choice').eq('round_id',rid).eq('voter_id',uid).maybeSingle(),'Loading your vote');
-    return item?.choice??null;
-  };
+  function emit(user){authCallback?.(user);}
+  async function currentUser(){
+    const session=token();if(!session)return null;
+    try{const me=await rpc('pbb_whoami',{p_token:session},'Checking session');if(!me){forgetSession();return null;}return{name:me.name,isHost:me.is_host,is_host:me.is_host};}
+    catch(error){if(/session expired/i.test(error.message)){forgetSession();return null;}throw error;}
+  }
+  async function authenticate(name,password,mode){
+    const result=await rpc(mode==='register'?'pbb_register':'pbb_login',{p_name:name.trim(),p_password:password},mode==='register'?'Creating account':'Signing in');
+    storeSession(result);
+    const user={name:result.name,isHost:result.is_host,is_host:result.is_host};
+    if(role==='host'&&!user.isHost){emit(user);throw Error('This account is not yet authorized as Kuya. Have the project owner promote Ben using the SQL setup instructions.');}
+    emit(user);return user;
+  }
+  const fetchState=async()=>deserializeState(unwrap(await client.from('pbb_house_state').select('*').eq('id',1).single(),'Loading voting state'));
+  const fetchVotes=async rid=>await rpc('pbb_private_votes',{p_token:token(),p_round:rid},'Loading host tally')||{};
+  const fetchOwn=async rid=>await rpc('pbb_my_vote',{p_token:token(),p_round:rid},'Loading your vote');
   function watchTable(table,filter,read,cb,interval){
-    let stopped=false,pending=false;
-    const refresh=async()=>{if(stopped||pending)return;pending=true;try{const value=await read();if(!stopped)cb(value);}catch(err){if(!stopped)console.error(`[PBB] ${table} refresh:`,err);}finally{pending=false;}};
-    const channel=client.channel(`pbb-${table}-${Math.random().toString(36).slice(2)}`)
+    let disposed=false,working=false;
+    async function refresh(){if(disposed||working)return;working=true;try{const data=await read();if(!disposed)cb(data);}catch(e){if(!disposed)console.error('[PBB] Refresh failed:',e);}finally{working=false;}}
+    const channel=client.channel(`pbb-watch-${table}-${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes',{event:'*',schema:'public',table,...(filter?{filter}:{})},refresh).subscribe();
-    const timer=setInterval(refresh,interval);
-    refresh();
-    return ()=>{stopped=true;clearInterval(timer);client.removeChannel(channel);};
+    const timer=setInterval(refresh,interval);refresh();
+    return()=>{disposed=true;clearInterval(timer);client.removeChannel(channel);};
   }
-  async function updateState(patch){
-    const columns=statePatch(patch);
-    if(!Object.keys(columns).length)return;
-    unwrap(await client.from('pbb_house_state').update(columns).eq('id',1).select('id').single(),'Updating voting state');
-  }
-  return {
-    mode:'live',
-    subscribeAuth:cb=>{
-      let active=true;
-      function send(user){if(!active)return;cb(user?{uid:user.id,email:user.email,isAnonymous:!!user.is_anonymous}:null);}
-      client.auth.getUser().then(({data})=>send(data?.user||null));
-      const {data:sub}=client.auth.onAuthStateChange((_event,session)=>send(session?.user||null));
-      return ()=>{active=false;sub.subscription.unsubscribe();};
-    },
-    async login(email,password){
-      const data=unwrap(await client.auth.signInWithPassword({email,password}),'Signing in');
-      const isHost=unwrap(await client.rpc('pbb_is_host'),'Checking host permission');
-      if(!isHost){await client.auth.signOut();throw new Error('This account is not authorized as Kuya. Add its user UID to pbb_hosts in Supabase.');}
-      return data;
-    },
-    logout:async()=>unwrap(await client.auth.signOut(),'Signing out'),
-    subscribeState:cb=>watchTable('pbb_house_state','id=eq.1',getState,cb,10000),
-    subscribeVotes:(rid,cb)=>watchTable('pbb_votes',null,()=>getVotes(rid),cb,2500),
-    subscribeOwnVote:(rid,cb)=>watchTable('pbb_votes',null,()=>getOwnVote(rid),cb,10000),
-    setState:updateState,
-    async castVote(rid,choice){
-      const voter_id=await getUid();
-      const result=await client.from('pbb_votes').insert({round_id:rid,voter_id,choice});
-      if(result.error){
-        if(result.error.code==='23505')throw new Error('This account already voted in this round.');
-        if(result.error.code==='42501')throw new Error('Voting is closed or this choice is not allowed.');
-        throw new Error('Your vote was not recorded: '+result.error.message);
-      }
-    },
-    async resetVotes(rid){unwrap(await client.from('pbb_votes').delete().eq('round_id',rid),'Resetting votes');},
-    async reveal(rid){
-      // Close first, then count votes; the database refuses new votes when closed.
-      await updateState({status:'closed',showResults:false,resultSummary:null});
-      const summary=makeSummary(rid,await getVotes(rid));
-      await updateState({showResults:true,resultSummary:summary});
-      return summary;
-    }
+  return{
+    mode:'live',currentUser,
+    subscribeAuth(cb){authCallback=cb;return()=>{authCallback=null;};},
+    login:(name,password)=>authenticate(name,password,'login'),
+    register:(name,password)=>authenticate(name,password,'register'),
+    async logout(){const previous=token();forgetSession();if(previous){try{await rpc('pbb_logout',{p_token:previous},'Signing out');}catch(e){console.warn(e);}}emit(null);},
+    subscribeState:cb=>watchTable('pbb_house_state','id=eq.1',fetchState,8000),
+    subscribeVotes:(rid,cb)=>watchTable('pbb_votes',null,()=>fetchVotes(rid),cb,2000),
+    subscribeOwnVote:(rid,cb)=>watchTable('pbb_votes',null,()=>fetchOwn(rid),cb,6000),
+    async setState(patch){await rpc('pbb_update_show',{p_token:token(),p_patch:patch},'Updating voting state');},
+    async castVote(rid,choice){await rpc('pbb_submit_vote',{p_token:token(),p_round:rid,p_choice:choice},'Recording vote');},
+    async resetVotes(rid){await rpc('pbb_clear_round',{p_token:token(),p_round:rid},'Resetting votes');},
+    async reveal(rid){await this.setState({status:'closed',showResults:false,resultSummary:null});const summary=makeSummary(rid,await fetchVotes(rid));await this.setState({showResults:true,resultSummary:summary});return summary;},
   };
 }
 export function currentMode(){return(!supabaseReady||new URLSearchParams(location.search).has('demo'))?'demo':'live';}
